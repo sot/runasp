@@ -15,8 +15,7 @@ import pyyaks.logger
 from astropy.io import fits
 from mica.starcheck import get_starcheck_catalog_at_date
 
-_versionfile = os.path.join(os.path.dirname(__file__), 'VERSION')
-VERSION = open(_versionfile).read().strip()
+VERSION = '0.1_fdc'
 
 
 def get_options():
@@ -60,6 +59,8 @@ def get_options():
     parser.add_option('--log-file',
                       default='pipe.log',
                       help='Log file (default=pipe.log)')
+    parser.add_option('--fdc-file',
+                      help="fdc file")
     opt, args = parser.parse_args()
     return opt, args
 
@@ -353,6 +354,9 @@ def run_ai(ais):
         ascds_env[var] = ocat_env[var]
 
     logger_fh = FilelikeLogger(logger)
+    if opt.fdc_file is not None:
+        tcsh_shell("pset asp_l1_std fdc='{}'".format(opt.fdc_file),
+                   env=ascds_env, logfile=logger_fh)
 
     for ai in ais:
         pipe_cmd = 'flt_run_pipe -r {root} -i {indir} -o {outdir} \
