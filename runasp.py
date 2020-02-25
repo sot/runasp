@@ -6,14 +6,13 @@ from glob import glob
 import csv
 import gzip
 import shutil
-from itertools import izip, count
+from itertools import count
 import numpy as np
 
 import Ska.arc5gl
-from Ska.Shell import getenv, bash, tcsh_shell, ShellError
+from Ska.Shell import getenv, bash, tcsh_shell
 import pyyaks.logger
 from astropy.io import fits
-from astropy.table import Table
 from mica.starcheck import get_starcheck_catalog_at_date
 
 _versionfile = os.path.join(os.path.dirname(__file__), 'VERSION')
@@ -94,7 +93,7 @@ cai_override = {'obs_id': 'i',
 
 
 def parse_obspar(file, override=None):
-# borrowed from telem_archive ... override is new
+    # borrowed from telem_archive ... override is new
     convert = {'i': int,
                'r': float,
                's': str}
@@ -201,22 +200,26 @@ def link_files(dir, indir, outdir, istart, istop, obiroot, skip_slot=None):
                     header = fits.getheader(mfile)
                     if ((istart >= header['tstop'])
                             or (istop <= header['tstart'])):
-                        logger.verbose("skipping file out of timerange {}".format(mfile))
+                        logger.verbose(
+                            "skipping file out of timerange {}".format(mfile))
                         continue
                     aca0 = re.search('aca.*_(\d)_img0', mfile)
                     if skip_slot and aca0:
                         aca_file_slot = int(aca0.group(1))
                         if aca_file_slot in skip_slot:
-                            logger.verbose("skipping slot file on {}".format(mfile))
+                            logger.verbose(
+                                "skipping slot file on {}".format(mfile))
                             continue
                 obsparmatch = re.match('.*obs0a\.par(\.gz)?', mfile)
                 if obsparmatch:
-                    obimatch = re.match('.*axaf%s_obs0a\.par(\.gz)?' % obiroot, mfile)
+                    obimatch = re.match(
+                        '.*axaf%s_obs0a\.par(\.gz)?' % obiroot, mfile)
                     if not obimatch:
                         logger.verbose("skipping obspar for different obi")
                         continue
                 if not os.path.exists(os.path.join(ldir, os.path.basename(mfile))):
-                    logger.info("ln -s {} {}".format(os.path.relpath(mfile, ldir), ldir))
+                    logger.info(
+                        "ln -s {} {}".format(os.path.relpath(mfile, ldir), ldir))
                     bash("ln -s %s %s" % (os.path.relpath(mfile, ldir), ldir))
 
 
@@ -235,7 +238,8 @@ def make_list_files(dir, indir, outdir, root):
                               ('pcad.lis', 'pcad*eng0*fits*'),
                               ('acis.lis', 'acis*eng0*fits*'),
                               ('obc.lis', 'obc*eng0*fits*')):
-        filename = os.path.join(indir, "{root}_{listend}".format(root=root, listend=listend))
+        filename = os.path.join(
+            indir, "{root}_{listend}".format(root=root, listend=listend))
         logger.info('Writing list file {}'.format(filename))
         with open(filename, 'w') as lfile:
             sglob = sorted(glob(os.path.join(indir, listglob)))
@@ -246,7 +250,8 @@ def make_list_files(dir, indir, outdir, root):
     logger.info('Writing list file {}'.format(filename))
     with open(filename, 'w') as lfile:
         for slot in [3, 4, 5, 6, 7, 0, 1, 2]:
-            sglob = sorted(glob(os.path.join(indir, 'aca*_%d_*0.fits*' % slot)))
+            sglob = sorted(
+                glob(os.path.join(indir, 'aca*_%d_*0.fits*' % slot)))
             telem_lines = '\n'.join([os.path.basename(x) for x in sglob])
             lfile.write(telem_lines)
             lfile.write("\n")
@@ -292,8 +297,8 @@ def get_range_ai(ai_cmds, proc_range):
         tstop = tstart + seconds
         cut_ai = ai_cmds[interv].copy()
         cut_ai['istop'] = tstop
-        print "attempted to process first %d sec of ai %d" % (
-            seconds, interv)
+        print(("attempted to process first %d sec of ai %d" % (
+            seconds, interv)))
         return [cut_ai]
 
 
@@ -314,6 +319,7 @@ class FilelikeLogger(object):
     """
     Make logger object look a bit file-like for writing
     """
+
     def __init__(self, logger):
         self.logger = logger
         for fh in self.logger.handlers:
@@ -359,18 +365,21 @@ def run_ai(ais):
             pipe_cmd = pipe_cmd + " -s {}".format(ai['pipe_start_at'])
         if 'pipe_stop_before' in ai:
             pipe_cmd = pipe_cmd + " -S {}".format(ai['pipe_stop_before'])
-        logger.info('Running pipe command {}'.format(pipe_cmd + ' -S check_star_data'))
+        logger.info('Running pipe command {}'.format(
+            pipe_cmd + ' -S check_star_data'))
         tcsh_shell(pipe_cmd + " -S check_star_data",
                    env=ascds_env,
                    logfile=logger_fh)
         star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
         if not len(star_files) == 1:
-            logger.info("Missing stars.txt, mocking one up from mica starcheck database")
+            logger.info(
+                "Missing stars.txt, mocking one up from mica starcheck database")
             mock_stars_file(opt, ai)
         if 'skip_slot' in ai:
             logger.info("Cutting star as requested")
             cut_stars(ai)
-        logger.info('Running pipe command {}'.format(pipe_cmd + " -s check_star_data"))
+        logger.info('Running pipe command {}'.format(
+            pipe_cmd + " -s check_star_data"))
         tcsh_shell(pipe_cmd + " -s check_star_data",
                    env=ascds_env,
                    logfile=logger_fh)
@@ -382,7 +391,8 @@ def mock_stars_file(opt, ai):
     """
     sc = get_starcheck_catalog_at_date(ai['istart'])
 
-    acqs = sc['cat'][(sc['cat']['type'] == 'ACQ') | (sc['cat']['type'] == 'BOT')]
+    acqs = sc['cat'][(sc['cat']['type'] == 'ACQ') |
+                     (sc['cat']['type'] == 'BOT')]
     acqs.sort('slot')
     acqs['soe_type'] = 0
     full_table = acqs[['slot', 'soe_type', 'id', 'yang', 'zang']]
@@ -392,7 +402,8 @@ def mock_stars_file(opt, ai):
         fids['soe_type'] = 2
         for f in fids[['slot', 'soe_type', 'id', 'yang', 'zang']]:
             full_table.add_row(f)
-    gui = sc['cat'][(sc['cat']['type'] == 'BOT') | (sc['cat']['type'] == 'GUI')]
+    gui = sc['cat'][(sc['cat']['type'] == 'BOT') |
+                    (sc['cat']['type'] == 'GUI')]
     gui.sort('slot')
     gui['soe_type'] = 1
     for g in gui[['slot', 'soe_type', 'id', 'yang', 'zang']]:
@@ -433,7 +444,7 @@ def mock_cai_file(opt):
     kalman_intervals = [dict((col, kalman[0][col]) for col in colnames)]
 
     if len(kalman) > 1:
-        for k, idx in izip(kalman[1:], count(1)):
+        for k, idx in zip(kalman[1:], count(1)):
             if k['start_time'] == kalman[idx - 1]['stop_time']:
                 kalman_intervals[-1].update(dict(stop_time=k['stop_time']))
             else:
@@ -597,15 +608,16 @@ def main(opt):
     range_ais = get_range_ai(ai_cmds, opt.range)
     run_ai(range_ais)
 
+
 if __name__ == '__main__':
     global logger
     opt, args = get_options()
     if opt.code_version:
-        print VERSION
+        print(VERSION)
         sys.exit(0)
     if opt.pipe_stop_before == 'create_props_files':
-        print """There is a known bug in flt_pctr that can prevent
-a stop at 'create_props_files'.  Choose a different pipe stop."""
+        print("""There is a known bug in flt_pctr that can prevent
+a stop at 'create_props_files'.  Choose a different pipe stop.""")
         sys.exit(0)
     logger = pyyaks.logger.get_logger(name='runasp', level=opt.log_level, filename=opt.log_file,
                                       filelevel=15, format="%(asctime)s %(message)s")
