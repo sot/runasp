@@ -17,6 +17,44 @@ from mica.starcheck import get_starcheck_catalog_at_date
 
 VERSION = '0.1_fdc'
 
+PIPES = [
+    'make_obc_solution',
+    'get_star_data',
+    'check_star_data',
+    'check_slot_exclude',
+    'create_props_files',
+    'get_calibration_data',
+    'create_GYRODATA',
+    'process_gyro_data',
+    'create_ACADATA',
+    'apply_ccd_corrections',
+    'find_bad_pixels',
+    'check_acacal_update',
+    'replace_orig_acacal',
+    'reapply_ccd_corrections',
+    'calculate_centroids',
+    'sort_centroids',
+    'replace_acacent',
+    'apply_centroid_corrections',
+    'filter_centr',
+    'correct_acis_fids',
+    'correct_properties',
+    'run_forward_kalman',
+    'run_smooth_kalman',
+    'create_aspect_solution',
+    'make_primary_list',
+    'make_principle_list',
+    'make_prim_keylist',
+    'make_pric_keylist',
+    'update_prim_keys',
+    'update_princ_keys',
+    'check_solution_quality',
+    'update_aqual_primkeys',
+    'update_aqual_princkeys',
+    'update_ds_ident',
+    'add_revision',
+    'add_caldbver']
+
 
 def get_options():
     from optparse import OptionParser
@@ -354,6 +392,10 @@ def run_ai(ais):
         ascds_env[var] = ocat_env[var]
 
     logger_fh = FilelikeLogger(logger)
+
+    loglines = tcsh_shell("punlearn asp_l1_std",
+                          env=ascds_env, logfile=logger_fh)
+
     if opt.fdc_file is not None:
         tcsh_shell("pset asp_l1_std fdc='{}'".format(opt.fdc_file),
                    env=ascds_env, logfile=logger_fh)
@@ -365,28 +407,49 @@ def run_ai(ais):
 -a "INTERVAL_STOP"={istop} \
 -a obiroot={obiroot} \
 -a revision=1 '.format(**ai)
+
+        start_pipe = PIPES[0]
+        stop_pipe = PIPES[-1]
         if 'pipe_start_at' in ai:
-            pipe_cmd = pipe_cmd + " -s {}".format(ai['pipe_start_at'])
+            if ai['pipe_start_at'] not in PIPES:
+                raise ValueError(f"{ai['pipe_start_at']} not in PIPES list")
+            start_pipe = ai['pipe_start_at']
         if 'pipe_stop_before' in ai:
-            pipe_cmd = pipe_cmd + " -S {}".format(ai['pipe_stop_before'])
-        logger.info('Running pipe command {}'.format(
-            pipe_cmd + ' -S check_star_data'))
-        tcsh_shell(pipe_cmd + " -S check_star_data",
-                   env=ascds_env,
-                   logfile=logger_fh)
-        star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
-        if not len(star_files) == 1:
-            logger.info(
-                "Missing stars.txt, mocking one up from mica starcheck database")
-            mock_stars_file(opt, ai)
-        if 'skip_slot' in ai:
-            logger.info("Cutting star as requested")
-            cut_stars(ai)
-        logger.info('Running pipe command {}'.format(
-            pipe_cmd + " -s check_star_data"))
-        tcsh_shell(pipe_cmd + " -s check_star_data",
-                   env=ascds_env,
-                   logfile=logger_fh)
+            if ai['pipe_stop_before'] not in PIPES:
+                raise ValueError(f"{ai['pipe_stop_before']} not in PIPES list")
+            stop_pipe = ai['pipe_stop_before']
+
+        # if the options start after or end before the stage to remove stars,
+        # just do what is asked
+        if (PIPES.index(start_pipe) > PIPES.index('check_star_data') or
+                PIPES.index(stop_pipe) < PIPES.index('check_star_data')):
+            pipe_cmd = pipe_cmd + f' -s {start_pipe} ' + f' -S {stop_pipe} '
+            logger.info('Running pipe command {}'.format(
+                pipe_cmd))
+            tcsh_shell(pipe_cmd,
+                       env=ascds_env,
+                       logfile=logger_fh)
+        else:
+            first_pipe = pipe_cmd + \
+                f' -s {start_pipe} ' + " -S check_star_data"
+            logger.info('Running pipe command {}'.format(first_pipe))
+            tcsh_shell(first_pipe,
+                       env=ascds_env,
+                       logfile=logger_fh)
+            star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
+            if not len(star_files) == 1:
+                logger.info(
+                    "Missing stars.txt, mocking one up from mica starcheck database")
+                mock_stars_file(opt, ai)
+            if 'skip_slot' in ai:
+                logger.info("Cutting star as requested")
+                cut_stars(ai)
+            second_pipe = pipe_cmd + \
+                f' -s check_star_data ' + f' -S {stop_pipe}'
+            logger.info('Running pipe command {}'.format(second_pipe))
+            tcsh_shell(second_pipe,
+                       env=ascds_env,
+                       logfile=logger_fh)
 
 
 def mock_stars_file(opt, ai):
