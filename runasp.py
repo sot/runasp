@@ -6,18 +6,54 @@ from glob import glob
 import csv
 import gzip
 import shutil
-from itertools import izip, count
+from itertools import count
 import numpy as np
 
 import Ska.arc5gl
-from Ska.Shell import getenv, bash, tcsh_shell, ShellError
+from Ska.Shell import getenv, bash, tcsh_shell
 import pyyaks.logger
 from astropy.io import fits
-from astropy.table import Table
 from mica.starcheck import get_starcheck_catalog_at_date
 
-_versionfile = os.path.join(os.path.dirname(__file__), 'VERSION')
-VERSION = open(_versionfile).read().strip()
+VERSION = '4.0'
+
+PIPES = [
+    'make_obc_solution',
+    'get_star_data',
+    'check_star_data',
+    'check_slot_exclude',
+    'create_props_files',
+    'get_calibration_data',
+    'create_GYRODATA',
+    'process_gyro_data',
+    'create_ACADATA',
+    'apply_ccd_corrections',
+    'find_bad_pixels',
+    'check_acacal_update',
+    'replace_orig_acacal',
+    'reapply_ccd_corrections',
+    'calculate_centroids',
+    'sort_centroids',
+    'replace_acacent',
+    'apply_centroid_corrections',
+    'filter_centr',
+    'correct_acis_fids',
+    'correct_properties',
+    'run_forward_kalman',
+    'run_smooth_kalman',
+    'create_aspect_solution',
+    'make_primary_list',
+    'make_principle_list',
+    'make_prim_keylist',
+    'make_pric_keylist',
+    'update_prim_keys',
+    'update_princ_keys',
+    'check_solution_quality',
+    'update_aqual_primkeys',
+    'update_aqual_princkeys',
+    'update_ds_ident',
+    'add_revision',
+    'add_caldbver']
 
 
 def get_options():
@@ -61,6 +97,8 @@ def get_options():
     parser.add_option('--log-file',
                       default='pipe.log',
                       help='Log file (default=pipe.log)')
+    parser.add_option('--fdc-file',
+                      help="fdc file")
     opt, args = parser.parse_args()
     return opt, args
 
@@ -94,7 +132,7 @@ cai_override = {'obs_id': 'i',
 
 
 def parse_obspar(file, override=None):
-# borrowed from telem_archive ... override is new
+    # borrowed from telem_archive ... override is new
     convert = {'i': int,
                'r': float,
                's': str}
@@ -201,22 +239,26 @@ def link_files(dir, indir, outdir, istart, istop, obiroot, skip_slot=None):
                     header = fits.getheader(mfile)
                     if ((istart >= header['tstop'])
                             or (istop <= header['tstart'])):
-                        logger.verbose("skipping file out of timerange {}".format(mfile))
+                        logger.verbose(
+                            "skipping file out of timerange {}".format(mfile))
                         continue
                     aca0 = re.search('aca.*_(\d)_img0', mfile)
                     if skip_slot and aca0:
                         aca_file_slot = int(aca0.group(1))
                         if aca_file_slot in skip_slot:
-                            logger.verbose("skipping slot file on {}".format(mfile))
+                            logger.verbose(
+                                "skipping slot file on {}".format(mfile))
                             continue
                 obsparmatch = re.match('.*obs0a\.par(\.gz)?', mfile)
                 if obsparmatch:
-                    obimatch = re.match('.*axaf%s_obs0a\.par(\.gz)?' % obiroot, mfile)
+                    obimatch = re.match(
+                        '.*axaf%s_obs0a\.par(\.gz)?' % obiroot, mfile)
                     if not obimatch:
                         logger.verbose("skipping obspar for different obi")
                         continue
                 if not os.path.exists(os.path.join(ldir, os.path.basename(mfile))):
-                    logger.info("ln -s {} {}".format(os.path.relpath(mfile, ldir), ldir))
+                    logger.info(
+                        "ln -s {} {}".format(os.path.relpath(mfile, ldir), ldir))
                     bash("ln -s %s %s" % (os.path.relpath(mfile, ldir), ldir))
 
 
@@ -235,7 +277,8 @@ def make_list_files(dir, indir, outdir, root):
                               ('pcad.lis', 'pcad*eng0*fits*'),
                               ('acis.lis', 'acis*eng0*fits*'),
                               ('obc.lis', 'obc*eng0*fits*')):
-        filename = os.path.join(indir, "{root}_{listend}".format(root=root, listend=listend))
+        filename = os.path.join(
+            indir, "{root}_{listend}".format(root=root, listend=listend))
         logger.info('Writing list file {}'.format(filename))
         with open(filename, 'w') as lfile:
             sglob = sorted(glob(os.path.join(indir, listglob)))
@@ -246,7 +289,8 @@ def make_list_files(dir, indir, outdir, root):
     logger.info('Writing list file {}'.format(filename))
     with open(filename, 'w') as lfile:
         for slot in [3, 4, 5, 6, 7, 0, 1, 2]:
-            sglob = sorted(glob(os.path.join(indir, 'aca*_%d_*0.fits*' % slot)))
+            sglob = sorted(
+                glob(os.path.join(indir, 'aca*_%d_*0.fits*' % slot)))
             telem_lines = '\n'.join([os.path.basename(x) for x in sglob])
             lfile.write(telem_lines)
             lfile.write("\n")
@@ -292,8 +336,8 @@ def get_range_ai(ai_cmds, proc_range):
         tstop = tstart + seconds
         cut_ai = ai_cmds[interv].copy()
         cut_ai['istop'] = tstop
-        print "attempted to process first %d sec of ai %d" % (
-            seconds, interv)
+        print(("attempted to process first %d sec of ai %d" % (
+            seconds, interv)))
         return [cut_ai]
 
 
@@ -314,6 +358,7 @@ class FilelikeLogger(object):
     """
     Make logger object look a bit file-like for writing
     """
+
     def __init__(self, logger):
         self.logger = logger
         for fh in self.logger.handlers:
@@ -348,6 +393,13 @@ def run_ai(ais):
 
     logger_fh = FilelikeLogger(logger)
 
+    loglines = tcsh_shell("punlearn asp_l1_std",
+                          env=ascds_env, logfile=logger_fh)
+
+    if opt.fdc_file is not None:
+        tcsh_shell("pset asp_l1_std fdc='{}'".format(opt.fdc_file),
+                   env=ascds_env, logfile=logger_fh)
+
     for ai in ais:
         pipe_cmd = 'flt_run_pipe -r {root} -i {indir} -o {outdir} \
 -t {pipe_ped} \
@@ -355,25 +407,49 @@ def run_ai(ais):
 -a "INTERVAL_STOP"={istop} \
 -a obiroot={obiroot} \
 -a revision=1 '.format(**ai)
+
+        start_pipe = PIPES[0]
+        stop_pipe = PIPES[-1]
         if 'pipe_start_at' in ai:
-            pipe_cmd = pipe_cmd + " -s {}".format(ai['pipe_start_at'])
+            if ai['pipe_start_at'] not in PIPES:
+                raise ValueError(f"{ai['pipe_start_at']} not in PIPES list")
+            start_pipe = ai['pipe_start_at']
         if 'pipe_stop_before' in ai:
-            pipe_cmd = pipe_cmd + " -S {}".format(ai['pipe_stop_before'])
-        logger.info('Running pipe command {}'.format(pipe_cmd + ' -S check_star_data'))
-        tcsh_shell(pipe_cmd + " -S check_star_data",
-                   env=ascds_env,
-                   logfile=logger_fh)
-        star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
-        if not len(star_files) == 1:
-            logger.info("Missing stars.txt, mocking one up from mica starcheck database")
-            mock_stars_file(opt, ai)
-        if 'skip_slot' in ai:
-            logger.info("Cutting star as requested")
-            cut_stars(ai)
-        logger.info('Running pipe command {}'.format(pipe_cmd + " -s check_star_data"))
-        tcsh_shell(pipe_cmd + " -s check_star_data",
-                   env=ascds_env,
-                   logfile=logger_fh)
+            if ai['pipe_stop_before'] not in PIPES:
+                raise ValueError(f"{ai['pipe_stop_before']} not in PIPES list")
+            stop_pipe = ai['pipe_stop_before']
+
+        # if the options start after or end before the stage to remove stars,
+        # just do what is asked
+        if (PIPES.index(start_pipe) > PIPES.index('check_star_data') or
+                PIPES.index(stop_pipe) < PIPES.index('check_star_data')):
+            pipe_cmd = pipe_cmd + f' -s {start_pipe} ' + f' -S {stop_pipe} '
+            logger.info('Running pipe command {}'.format(
+                pipe_cmd))
+            tcsh_shell(pipe_cmd,
+                       env=ascds_env,
+                       logfile=logger_fh)
+        else:
+            first_pipe = pipe_cmd + \
+                f' -s {start_pipe} ' + " -S check_star_data"
+            logger.info('Running pipe command {}'.format(first_pipe))
+            tcsh_shell(first_pipe,
+                       env=ascds_env,
+                       logfile=logger_fh)
+            star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
+            if not len(star_files) == 1:
+                logger.info(
+                    "Missing stars.txt, mocking one up from mica starcheck database")
+                mock_stars_file(opt, ai)
+            if 'skip_slot' in ai:
+                logger.info("Cutting star as requested")
+                cut_stars(ai)
+            second_pipe = pipe_cmd + \
+                f' -s check_star_data ' + f' -S {stop_pipe}'
+            logger.info('Running pipe command {}'.format(second_pipe))
+            tcsh_shell(second_pipe,
+                       env=ascds_env,
+                       logfile=logger_fh)
 
 
 def mock_stars_file(opt, ai):
@@ -382,7 +458,8 @@ def mock_stars_file(opt, ai):
     """
     sc = get_starcheck_catalog_at_date(ai['istart'])
 
-    acqs = sc['cat'][(sc['cat']['type'] == 'ACQ') | (sc['cat']['type'] == 'BOT')]
+    acqs = sc['cat'][(sc['cat']['type'] == 'ACQ') |
+                     (sc['cat']['type'] == 'BOT')]
     acqs.sort('slot')
     acqs['soe_type'] = 0
     full_table = acqs[['slot', 'soe_type', 'id', 'yang', 'zang']]
@@ -392,7 +469,8 @@ def mock_stars_file(opt, ai):
         fids['soe_type'] = 2
         for f in fids[['slot', 'soe_type', 'id', 'yang', 'zang']]:
             full_table.add_row(f)
-    gui = sc['cat'][(sc['cat']['type'] == 'BOT') | (sc['cat']['type'] == 'GUI')]
+    gui = sc['cat'][(sc['cat']['type'] == 'BOT') |
+                    (sc['cat']['type'] == 'GUI')]
     gui.sort('slot')
     gui['soe_type'] = 1
     for g in gui[['slot', 'soe_type', 'id', 'yang', 'zang']]:
@@ -433,7 +511,7 @@ def mock_cai_file(opt):
     kalman_intervals = [dict((col, kalman[0][col]) for col in colnames)]
 
     if len(kalman) > 1:
-        for k, idx in izip(kalman[1:], count(1)):
+        for k, idx in zip(kalman[1:], count(1)):
             if k['start_time'] == kalman[idx - 1]['stop_time']:
                 kalman_intervals[-1].update(dict(stop_time=k['stop_time']))
             else:
@@ -597,15 +675,16 @@ def main(opt):
     range_ais = get_range_ai(ai_cmds, opt.range)
     run_ai(range_ais)
 
+
 if __name__ == '__main__':
     global logger
     opt, args = get_options()
     if opt.code_version:
-        print VERSION
+        print(VERSION)
         sys.exit(0)
     if opt.pipe_stop_before == 'create_props_files':
-        print """There is a known bug in flt_pctr that can prevent
-a stop at 'create_props_files'.  Choose a different pipe stop."""
+        print("""There is a known bug in flt_pctr that can prevent
+a stop at 'create_props_files'.  Choose a different pipe stop.""")
         sys.exit(0)
     logger = pyyaks.logger.get_logger(name='runasp', level=opt.log_level, filename=opt.log_file,
                                       filelevel=15, format="%(asctime)s %(message)s")
