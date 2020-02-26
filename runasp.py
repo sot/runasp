@@ -15,7 +15,7 @@ import pyyaks.logger
 from astropy.io import fits
 from mica.starcheck import get_starcheck_catalog_at_date
 
-VERSION = '0.1_fdc'
+VERSION = '4.0'
 
 PIPES = [
     'make_obc_solution',
