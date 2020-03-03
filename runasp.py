@@ -409,7 +409,7 @@ def run_ai(ais):
 -a revision=1 '.format(**ai)
 
         start_pipe = PIPES[0]
-        stop_pipe = PIPES[-1]
+        stop_pipe = None
         if 'pipe_start_at' in ai:
             if ai['pipe_start_at'] not in PIPES:
                 raise ValueError(f"{ai['pipe_start_at']} not in PIPES list")
@@ -422,8 +422,11 @@ def run_ai(ais):
         # if the options start after or end before the stage to remove stars,
         # just do what is asked
         if (PIPES.index(start_pipe) > PIPES.index('check_star_data') or
-                PIPES.index(stop_pipe) < PIPES.index('check_star_data')):
-            pipe_cmd = pipe_cmd + f' -s {start_pipe} ' + f' -S {stop_pipe} '
+                ((stop_pipe is not None) and
+                 (PIPES.index(stop_pipe) < PIPES.index('check_star_data')))):
+            pipe_cmd = pipe_cmd + f' -s {start_pipe} '
+            if stop_pipe is not None:
+                pipe_cmd = pipe_cmd + f' -S {stop_pipe} '
             logger.info('Running pipe command {}'.format(
                 pipe_cmd))
             tcsh_shell(pipe_cmd,
@@ -444,8 +447,9 @@ def run_ai(ais):
             if 'skip_slot' in ai:
                 logger.info("Cutting star as requested")
                 cut_stars(ai)
-            second_pipe = pipe_cmd + \
-                f' -s check_star_data ' + f' -S {stop_pipe}'
+            second_pipe = pipe_cmd + f' -s check_star_data '
+            if stop_pipe is not None:
+                second_pipe = second_pipe + f' -S {stop_pipe}'
             logger.info('Running pipe command {}'.format(second_pipe))
             tcsh_shell(second_pipe,
                        env=ascds_env,
