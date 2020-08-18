@@ -299,7 +299,7 @@ def make_list_files(dir, indir, outdir, root):
     filename = os.path.join(outdir, "{root}_dat.lis".format(root=root))
     logger.info('Writing list file {}'.format(filename))
     with open(filename, 'w') as lfile:
-        sglob = sorted(glob(os.path.join(indir, 'pcad*adat*fits*')))
+        sglob = sorted(glob(os.path.join(outdir, 'pcad*adat*fits*')))
         lfile.write('\n'.join([os.path.basename(x) for x in sglob]))
 
 
