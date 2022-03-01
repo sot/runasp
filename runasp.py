@@ -99,6 +99,9 @@ def get_options():
                       help='Log file (default=pipe.log)')
     parser.add_option('--fdc-file',
                       help="fdc file")
+    parser.add_option("--param",
+                      action='append',
+                      help="additional params to be pset before the run")
     opt, args = parser.parse_args()
     return opt, args
 
@@ -399,6 +402,11 @@ def run_ai(ais):
     if opt.fdc_file is not None:
         tcsh_shell("pset asp_l1_std fdc='{}'".format(opt.fdc_file),
                    env=ascds_env, logfile=logger_fh)
+    if opt.param is not None and len(opt.param):
+        for param in opt.param:
+            cmd = 'pset asp_l1_std {}'.format(param)
+            tcsh_shell(cmd,
+                       env=ascds_env)
 
     for ai in ais:
         pipe_cmd = 'flt_run_pipe -r {root} -i {indir} -o {outdir} \
