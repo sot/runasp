@@ -220,7 +220,7 @@ def dir_setup(dir, istart, label=None, inplace=False, rev=1):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
         logger.info('Making output directory {}'.format(outdir))
-    return workdir, indir, outdir
+    return os.path.abspath(workdir), os.path.abspath(indir), os.path.abspath(outdir)
 
 
 def link_files(dir, indir, outdir, istart, istop, obiroot, skip_slot=None):
