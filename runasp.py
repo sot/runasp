@@ -8,9 +8,11 @@ import gzip
 import shutil
 from itertools import count
 import numpy as np
+import subprocess
+import logging
 
 import Ska.arc5gl
-from Ska.Shell import getenv, bash, tcsh_shell
+from Ska.Shell import getenv, bash
 import pyyaks.logger
 from astropy.io import fits
 from mica.starcheck import get_starcheck_catalog_at_date
@@ -382,6 +384,39 @@ class FilelikeLogger(object):
         pass
 
 
+def communicate(process, logger=None, level='WARNING', text=False):
+    """
+    Real-time reading of a subprocess stdout.
+
+    Parameters
+    ----------
+    process:
+        process returned by subprocess.Popen
+    logger: logging.Logger
+        a logging.Logger instance
+    level: str or int
+        the logging level
+    text: bool
+        whether the process output is text or binary
+    """
+    if type(level) is str:
+        level = getattr(logging, level)
+    if logger is None:
+        logger = logging.getLogger()
+
+    while True:
+        if process.poll() is not None:
+            break
+        line = process.stdout.readline()
+        line = line if text else line.decode()
+        logger.log(level, line.rstrip("\n"))
+
+    # in case the buffer is still not empty after the process ended
+    for line in process.stdout.readlines():
+        line = line if text else line.decode()
+        logger.log(level, line[:-1])
+
+
 def run_ai(ais):
     """
     Run aspect pipeline 'flt_run_pipe' over the aspect intervals described
@@ -396,27 +431,48 @@ def run_ai(ais):
     for var in ['SYBASE_OCS', 'SYBASE']:
         ascds_env[var] = os.environ[var]
 
-    logger_fh = FilelikeLogger(logger)
-
-    loglines = tcsh_shell("punlearn asp_l1_std",
-                          env=ascds_env, logfile=logger_fh)
+    proc = subprocess.run(
+        ['punlearn', 'asp_l1_std'],
+        env=ascds_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT
+    )
+    for line in proc.stdout.decode().split('\n'):
+        logger.info(line)
 
     if opt.fdc_file is not None:
-        tcsh_shell("pset asp_l1_std fdc='{}'".format(opt.fdc_file),
-                   env=ascds_env, logfile=logger_fh)
+        proc = subprocess.run(
+            ['pset', 'asp_l1_std', f"fdc={opt.fdc_file}"],
+            env=ascds_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
+        )
+        for line in proc.stdout.decode().split('\n'):
+            logger.info(line)
+
     if opt.param is not None and len(opt.param):
         for param in opt.param:
-            cmd = 'pset asp_l1_std {}'.format(param)
-            tcsh_shell(cmd,
-                       env=ascds_env)
+            proc = subprocess.run(
+                ['pset', 'asp_l1_std', param],
+                env=ascds_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT
+            )
+            for line in proc.stdout.decode().split('\n'):
+                logger.info(line)
 
     for ai in ais:
-        pipe_cmd = 'flt_run_pipe -r {root} -i {indir} -o {outdir} \
--t {pipe_ped} \
--a "INTERVAL_START"={istart} \
--a "INTERVAL_STOP"={istop} \
--a obiroot={obiroot} \
--a revision=1 '.format(**ai)
+        pipe_cmd = [
+            'flt_run_pipe',
+            '-r', ai['root'],
+            '-i', ai['indir'],
+            '-o', ai['outdir'],
+            '-t', ai['pipe_ped'],
+            '-a', f'INTERVAL_START={ai["istart"]}',
+            '-a', f'INTERVAL_STOP={ai["istop"]}',
+            '-a', f'obiroot={ai["obiroot"]}',
+            '-a', 'revision=1'
+        ]
 
         start_pipe = PIPES[0]
         stop_pipe = None
@@ -434,21 +490,35 @@ def run_ai(ais):
         if (PIPES.index(start_pipe) > PIPES.index('check_star_data') or
                 ((stop_pipe is not None) and
                  (PIPES.index(stop_pipe) < PIPES.index('check_star_data')))):
-            pipe_cmd = pipe_cmd + f' -s {start_pipe} '
+            pipe_cmd = pipe_cmd + ['-s', start_pipe]
             if stop_pipe is not None:
-                pipe_cmd = pipe_cmd + f' -S {stop_pipe} '
-            logger.info('Running pipe command {}'.format(
-                pipe_cmd))
-            tcsh_shell(pipe_cmd,
-                       env=ascds_env,
-                       logfile=logger_fh)
+                pipe_cmd = pipe_cmd + ['-S', stop_pipe]
+            filename = os.path.join(ai['outdir'], 'pipe_1.log')
+            logger.info(f'Running pipe command {" ".join(pipe_cmd)}')
+            logger.info(f'Log: {filename}')
+            proc = subprocess.Popen(
+                pipe_cmd, env=ascds_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+            logger_2 = pyyaks.logger.get_logger(
+                name='pipe', level=15, filename=filename, format="%(asctime)s %(message)s"
+            )
+            communicate(proc, logger_2, level=15)
+            if proc.returncode:
+                logger.warning('pipe 1 failed')
         else:
-            first_pipe = pipe_cmd + \
-                f' -s {start_pipe} ' + " -S check_star_data"
-            logger.info('Running pipe command {}'.format(first_pipe))
-            tcsh_shell(first_pipe,
-                       env=ascds_env,
-                       logfile=logger_fh)
+            first_pipe = pipe_cmd + ['-s', start_pipe, '-S', 'check_star_data']
+            filename = os.path.join(ai['outdir'], 'pipe_1.log')
+            logger.info(f'Running pipe command {" ".join(first_pipe)}')
+            logger.info(f'Log: {filename}')
+            proc = subprocess.Popen(
+                first_pipe, env=ascds_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+            logger_2 = pyyaks.logger.get_logger(
+                name='pipe', level=15, filename=filename, format="%(asctime)s %(message)s"
+            )
+            communicate(proc, logger_2, level=15)
+            if proc.returncode:
+                logger.warning('pipe 1 failed')
             star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
             if not len(star_files) == 1:
                 logger.info(
@@ -457,13 +527,21 @@ def run_ai(ais):
             if 'skip_slot' in ai:
                 logger.info("Cutting star as requested")
                 cut_stars(ai)
-            second_pipe = pipe_cmd + f' -s check_star_data '
+            second_pipe = pipe_cmd + ['-s', 'check_star_data']
             if stop_pipe is not None:
-                second_pipe = second_pipe + f' -S {stop_pipe}'
-            logger.info('Running pipe command {}'.format(second_pipe))
-            tcsh_shell(second_pipe,
-                       env=ascds_env,
-                       logfile=logger_fh)
+                second_pipe = second_pipe + ['-S', stop_pipe]
+            filename = os.path.join(ai['outdir'], 'pipe_2.log')
+            logger.info(f'Running pipe command {" ".join(second_pipe)}')
+            logger.info(f'Log: {filename}')
+            proc = subprocess.Popen(
+                second_pipe, env=ascds_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+            logger_2 = pyyaks.logger.get_logger(
+                name='pipe', level=15, filename=filename, format="%(asctime)s %(message)s"
+            )
+            communicate(proc, logger_2, level=15)
+            if proc.returncode:
+                logger.warning('pipe 2 failed')
 
 
 def mock_stars_file(opt, ai):
