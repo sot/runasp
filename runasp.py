@@ -12,7 +12,6 @@ import subprocess
 import logging
 
 import Ska.arc5gl
-from Ska.Shell import getenv, bash
 import pyyaks.logger
 from astropy.io import fits
 from mica.starcheck import get_starcheck_catalog_at_date
@@ -264,8 +263,7 @@ def link_files(dir, indir, outdir, istart, istop, obiroot, skip_slot=None):
                 if not os.path.exists(os.path.join(ldir, os.path.basename(mfile))):
                     logger.info(
                         "ln -s {} {}".format(os.path.relpath(mfile, ldir), ldir))
-                    bash("ln -s %s %s" % (os.path.relpath(mfile, ldir), ldir))
-
+                    subprocess.run(['ln', '-s', os.path.relpath(mfile, ldir), ldir])
 
 def make_list_files(dir, indir, outdir, root):
     """
@@ -637,6 +635,34 @@ istop_0,r,h,{},,,""
     fh.close()
 
 
+def getenv(cmd, shell, diff=True):
+    from Ska.Shell.shell import _parse_keyvals, _fix_paths
+    p = subprocess.run(['which', shell], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if p.returncode:
+        raise Exception(f'Failed to find "{shell}" shell: {p.stderr.decode()}')
+    shell = p.stdout.decode().strip()
+    p = subprocess.run(
+        f'{cmd} && env',
+        shell=True,
+        executable=shell,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    if p.returncode:
+        raise Exception(f'Failed to get environment: {p.stderr.decode().strip()}')
+    newenv = _parse_keyvals(p.stdout.decode().split('\n'))
+    if diff:
+        deltaenv = dict()
+        expected_diff_set = set(('PS1', 'PS2', '_', 'SHLVL')) if shell == 'bash' else set()
+        currenv = dict(os.environ)
+        _fix_paths(newenv)
+        for key in set(newenv) - expected_diff_set:
+            if key not in currenv or currenv[key] != newenv[key]:
+                deltaenv[key] = newenv[key]
+        return deltaenv
+    return newenv
+
+
 def main(opt):
     # get files
     if opt.obsid:
@@ -684,7 +710,7 @@ def main(opt):
             for mfile in match:
                 if re.match(".*\.gz", mfile):
                     logger.verbose('Unzipping {}'.format(mfile))
-                    bash("gunzip -f %s" % os.path.abspath(mfile))
+                    subprocess.run(['gunzip', '-f', os.path.abspath(mfile)])
 
     # reset this to get unzipped names
     caiprops_files = glob(os.path.join(opt.dir, "asp05",
