@@ -393,6 +393,8 @@ def run_ai(ais):
         shell='tcsh')
     for var in ['ASCDS_OCAT_UNAME', 'ASCDS_OCAT_SERVER', 'ASCDS_OCAT_PWORD']:
         ascds_env[var] = ocat_env[var]
+    for var in ['SYBASE_OCS', 'SYBASE']:
+        ascds_env[var] = os.environ[var]
 
     logger_fh = FilelikeLogger(logger)
 
