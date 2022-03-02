@@ -246,17 +246,17 @@ def link_files(dir, indir, outdir, istart, istop, obiroot, skip_slot=None):
                         logger.verbose(
                             "skipping file out of timerange {}".format(mfile))
                         continue
-                    aca0 = re.search('aca.*_(\d)_img0', mfile)
+                    aca0 = re.search(r'aca.*_(\d)_img0', mfile)
                     if skip_slot and aca0:
                         aca_file_slot = int(aca0.group(1))
                         if aca_file_slot in skip_slot:
                             logger.verbose(
                                 "skipping slot file on {}".format(mfile))
                             continue
-                obsparmatch = re.match('.*obs0a\.par(\.gz)?', mfile)
+                obsparmatch = re.match(r'.*obs0a\.par(\.gz)?', mfile)
                 if obsparmatch:
                     obimatch = re.match(
-                        '.*axaf%s_obs0a\.par(\.gz)?' % obiroot, mfile)
+                        r'.*axaf%s_obs0a\.par(\.gz)?' % obiroot, mfile)
                     if not obimatch:
                         logger.verbose("skipping obspar for different obi")
                         continue
@@ -264,6 +264,7 @@ def link_files(dir, indir, outdir, istart, istop, obiroot, skip_slot=None):
                     logger.info(
                         "ln -s {} {}".format(os.path.relpath(mfile, ldir), ldir))
                     subprocess.run(['ln', '-s', os.path.relpath(mfile, ldir), ldir])
+
 
 def make_list_files(dir, indir, outdir, root):
     """
@@ -315,22 +316,22 @@ def get_range_ai(ai_cmds, proc_range):
     if not proc_range:
         return ai_cmds
     # if a single integer, return on that aspect interval
-    intmatch = re.match('^(\d+)$', proc_range)
+    intmatch = re.match(r'^(\d+)$', proc_range)
     if intmatch:
         interv = int(intmatch.group(1))
         return [ai_cmds[int(intmatch.group(1))]]
     # if of the form 0:1, return that range of intervals
     # (python form, not inclusive)
-    imatch = re.match('^(\d+):(\d+)$', proc_range)
+    imatch = re.match(r'^(\d+):(\d+)$', proc_range)
     if imatch:
         return ai_cmds[int(imatch.group(1)):int(imatch.group(2))]
     # if of the form 1: , return range 1 -> end
-    omatch = re.match('^(\d+):$', proc_range)
+    omatch = re.match(r'^(\d+):$', proc_range)
     if omatch:
         return ai_cmds[int(omatch.group(1)):]
     # if of the form 0:+3000, find a tstop corresponding
     # to tstart of aspect interval 0 plus 3000 seconds
-    tmatch = re.match('^(\d+):\+(\d+)$', proc_range)
+    tmatch = re.match(r'^(\d+):\+(\d+)$', proc_range)
     if tmatch:
         # get n seconds of specified interval
         interv = int(tmatch.group(1))
@@ -351,7 +352,7 @@ def cut_stars(ai):
     starlines = open(starfiles[0]).read().split("\n")
     for slot in ai['skip_slot']:
         starlines = [i for i in starlines
-                     if not re.match("^\s+{}\s+1.*".format(slot), i)]
+                     if not re.match(r"^\s+{}\s+1.*".format(slot), i)]
     logger.info('Cutting stars by updating {}'.format(starfiles[0]))
     with open(starfiles[0], "w") as newlist:
         newlist.write("\n".join(starlines))
@@ -489,9 +490,9 @@ def run_ai(ais):
 
         # if the options start after or end before the stage to remove stars,
         # just do what is asked
-        if (PIPES.index(start_pipe) > PIPES.index('check_star_data') or
-                ((stop_pipe is not None) and
-                 (PIPES.index(stop_pipe) < PIPES.index('check_star_data')))):
+        if (PIPES.index(start_pipe) > PIPES.index('check_star_data')
+                or ((stop_pipe is not None)
+                    and (PIPES.index(stop_pipe) < PIPES.index('check_star_data')))):
             pipe_cmd = pipe_cmd + ['-s', start_pipe]
             if stop_pipe is not None:
                 pipe_cmd = pipe_cmd + ['-S', stop_pipe]
@@ -552,8 +553,8 @@ def mock_stars_file(opt, ai):
     """
     sc = get_starcheck_catalog_at_date(ai['istart'])
 
-    acqs = sc['cat'][(sc['cat']['type'] == 'ACQ') |
-                     (sc['cat']['type'] == 'BOT')]
+    acqs = sc['cat'][(sc['cat']['type'] == 'ACQ')
+                     | (sc['cat']['type'] == 'BOT')]
     acqs.sort('slot')
     acqs['soe_type'] = 0
     full_table = acqs[['slot', 'soe_type', 'id', 'yang', 'zang']]
@@ -563,8 +564,8 @@ def mock_stars_file(opt, ai):
         fids['soe_type'] = 2
         for f in fids[['slot', 'soe_type', 'id', 'yang', 'zang']]:
             full_table.add_row(f)
-    gui = sc['cat'][(sc['cat']['type'] == 'BOT') |
-                    (sc['cat']['type'] == 'GUI')]
+    gui = sc['cat'][(sc['cat']['type'] == 'BOT')
+                    | (sc['cat']['type'] == 'GUI')]
     gui.sort('slot')
     gui['soe_type'] = 1
     for g in gui[['slot', 'soe_type', 'id', 'yang', 'zang']]:
@@ -708,7 +709,7 @@ def main(opt):
                 raise ValueError("No files found for glob %s"
                                  % fileglob)
             for mfile in match:
-                if re.match(".*\.gz", mfile):
+                if re.match(r".*\.gz", mfile):
                     logger.verbose('Unzipping {}'.format(mfile))
                     subprocess.run(['gunzip', '-f', os.path.abspath(mfile)])
 
@@ -728,7 +729,7 @@ def main(opt):
                    and "istop_%d" % interval in cai):
                 obi[cai['obi_num']][interval] = \
                     {'istart': cai['istart_%d' % interval],
-                     'istop':  cai['istop_%d' % interval]}
+                     'istop': cai['istop_%d' % interval]}
                 interval += 1
 
     ai_cmds = []
@@ -738,7 +739,7 @@ def main(opt):
         for ofile in obspar_files:
             obspar = get_obspar(ofile)
             if obspar['obi_num'] == obi_num:
-                obsmatch = re.search('axaf(.+)_obs0a\.par', ofile)
+                obsmatch = re.search(r'axaf(.+)_obs0a\.par', ofile)
                 obiroot = obsmatch.group(1)
         if not obiroot:
             raise ValueError("no obspar for obi %d" % obi_num)
