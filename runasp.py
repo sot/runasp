@@ -422,6 +422,7 @@ def run_ai(ais):
     Run aspect pipeline 'flt_run_pipe' over the aspect intervals described
     in the list of dictionaries passed as an argument
     """
+    logger.info('About to get ASCDS environment')
     ascds_env = getenv('source /home/ascds/.ascrc -r release', shell='tcsh')
     ocat_env = getenv(
         'source /proj/sot/ska/data/aspect_authorization/set_ascds_ocat_vars.csh',
@@ -431,6 +432,7 @@ def run_ai(ais):
     for var in ['SYBASE_OCS', 'SYBASE']:
         ascds_env[var] = os.environ[var]
 
+    logger.info('About to run')
     proc = subprocess.run(
         ['punlearn', 'asp_l1_std'],
         env=ascds_env,
@@ -441,6 +443,7 @@ def run_ai(ais):
         logger.info(line)
 
     if opt.fdc_file is not None:
+        logger.info('pset asp_l1_std fdc')
         proc = subprocess.run(
             ['pset', 'asp_l1_std', f"fdc={opt.fdc_file}"],
             env=ascds_env,
@@ -452,6 +455,7 @@ def run_ai(ais):
 
     if opt.param is not None and len(opt.param):
         for param in opt.param:
+            logger.info(f'pset asp_l1_std {param}')
             proc = subprocess.run(
                 ['pset', 'asp_l1_std', param],
                 env=ascds_env,
