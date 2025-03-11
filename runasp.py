@@ -53,7 +53,8 @@ PIPES = [
     'update_aqual_princkeys',
     'update_ds_ident',
     'add_revision',
-    'add_caldbver']
+    'add_caldbver'
+    'correct_bore']
 
 
 def get_options():
