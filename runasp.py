@@ -424,7 +424,7 @@ def run_ai(ais):
         # just do what is asked
         if (PIPES.index(start_pipe) > PIPES.index('check_star_data') or
                 ((stop_pipe is not None) and
-                 (PIPES.index(stop_pipe) < PIPES.index('check_star_data')))):
+                 (PIPES.index(stop_pipe) <= PIPES.index('check_star_data')))):
             pipe_cmd = pipe_cmd + f' -s {start_pipe} '
             if stop_pipe is not None:
                 pipe_cmd = pipe_cmd + f' -S {stop_pipe} '
