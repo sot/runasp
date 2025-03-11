@@ -397,8 +397,12 @@ def run_ai(ais):
                           env=ascds_env, logfile=logger_fh)
 
     if opt.fdc_file is not None:
-        tcsh_shell("pset asp_l1_std fdc='{}'".format(opt.fdc_file),
-                   env=ascds_env, logfile=logger_fh)
+        tcsh_shell(
+            "pset asp_l1_std fdc='{}'".format(opt.fdc_file),
+            env=ascds_env,
+            logfile=logger_fh,
+            check=False,    
+        )
 
     for ai in ais:
         pipe_cmd = 'flt_run_pipe -r {root} -i {indir} -o {outdir} \
@@ -429,16 +433,22 @@ def run_ai(ais):
                 pipe_cmd = pipe_cmd + f' -S {stop_pipe} '
             logger.info('Running pipe command {}'.format(
                 pipe_cmd))
-            tcsh_shell(pipe_cmd,
-                       env=ascds_env,
-                       logfile=logger_fh)
+            tcsh_shell(
+                pipe_cmd,
+                env=ascds_env,
+                logfile=logger_fh,
+                check=False,
+            )
         else:
             first_pipe = pipe_cmd + \
                 f' -s {start_pipe} ' + " -S check_star_data"
             logger.info('Running pipe command {}'.format(first_pipe))
-            tcsh_shell(first_pipe,
-                       env=ascds_env,
-                       logfile=logger_fh)
+            tcsh_shell(
+                first_pipe,
+                env=ascds_env,
+                logfile=logger_fh,
+                check=False,
+            )
             star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
             if not len(star_files) == 1:
                 logger.info(
@@ -451,9 +461,12 @@ def run_ai(ais):
             if stop_pipe is not None:
                 second_pipe = second_pipe + f' -S {stop_pipe}'
             logger.info('Running pipe command {}'.format(second_pipe))
-            tcsh_shell(second_pipe,
-                       env=ascds_env,
-                       logfile=logger_fh)
+            tcsh_shell(
+                second_pipe,
+                env=ascds_env,
+                logfile=logger_fh,
+                check=False,
+            )
 
 
 def mock_stars_file(opt, ai):
