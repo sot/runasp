@@ -432,14 +432,16 @@ def run_ai(ais):
                 pipe_cmd))
             tcsh_shell(pipe_cmd,
                        env=ascds_env,
-                       logfile=logger_fh)
+                       logfile=logger_fh
+                       check=stop_pipe is None)
         else:
             first_pipe = pipe_cmd + \
                 f' -s {start_pipe} ' + " -S check_star_data"
             logger.info('Running pipe command {}'.format(first_pipe))
             tcsh_shell(first_pipe,
                        env=ascds_env,
-                       logfile=logger_fh)
+                       logfile=logger_fh,
+                       check=False)
             star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
             if not len(star_files) == 1:
                 logger.info(
@@ -454,7 +456,8 @@ def run_ai(ais):
             logger.info('Running pipe command {}'.format(second_pipe))
             tcsh_shell(second_pipe,
                        env=ascds_env,
-                       logfile=logger_fh)
+                       logfile=logger_fh,
+                       check=stop_pipe is None)
 
 
 def mock_stars_file(opt, ai):
