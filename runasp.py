@@ -432,7 +432,7 @@ def run_ai(ais):
                 pipe_cmd))
             tcsh_shell(pipe_cmd,
                        env=ascds_env,
-                       logfile=logger_fh
+                       logfile=logger_fh,
                        check=stop_pipe is None)
         else:
             first_pipe = pipe_cmd + \
