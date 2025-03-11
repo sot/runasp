@@ -553,7 +553,7 @@ def main(opt):
     # get files
     if opt.obsid:
         logger.info('Opening connection to archive server')
-        arc5 = Ska.arc5gl.Arc5gl()
+        arc5 = ska_arc5gl.Arc5gl()
         for (prod, query) in pipe_config['archfiles']:
             proddir = os.path.join(opt.dir, prod)
             if not os.path.exists(proddir):
