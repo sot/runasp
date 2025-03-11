@@ -9,8 +9,8 @@ import shutil
 from itertools import count
 import numpy as np
 
-import Ska.arc5gl
-from Ska.Shell import getenv, bash, tcsh_shell
+import ska_arc5gl
+from ska_shell import getenv, bash, tcsh_shell
 import pyyaks.logger
 from astropy.io import fits
 from mica.starcheck import get_starcheck_catalog_at_date
