@@ -10,7 +10,7 @@ from itertools import count
 import numpy as np
 
 import ska_arc5gl
-from ska_shell import getenv, bash, tcsh_shell
+from ska_shell import getenv, bash, tcsh_shell, NonZeroReturnCode
 import pyyaks.logger
 from astropy.io import fits
 from mica.starcheck import get_starcheck_catalog_at_date
@@ -130,6 +130,24 @@ cai_override = {'obs_id': 'i',
                 'obi_num': 'i',
                 'ascdsver': 's',
                 'num_cai': 'i'}
+
+
+
+# Add a wrapper for tcsh_shell that continues on one allowed error code
+def pipe_tcsh_shell(cmd, env=None, logfile=None, ok_codes=None):
+    """
+    Run a tcsh command and return the output.
+
+    For aspect pipes, this allows the one error code (80) that is expected.
+    """
+    try:
+        output = tcsh_shell(cmd, env=env, logfile=logfile)
+    except NonZeroReturnCode as e:
+        if ok_codes is not None and e.return_code in ok_codes:
+            output = e.lines
+        else:
+            raise
+    return output
 
 
 def parse_obspar(file, override=None):
@@ -430,18 +448,18 @@ def run_ai(ais):
                 pipe_cmd = pipe_cmd + f' -S {stop_pipe} '
             logger.info('Running pipe command {}'.format(
                 pipe_cmd))
-            tcsh_shell(pipe_cmd,
+            pipe_tcsh_shell(pipe_cmd,
                        env=ascds_env,
                        logfile=logger_fh,
-                       check=stop_pipe is None)
+                       ok_codes=[80] if stop_pipe is not None else None)
         else:
             first_pipe = pipe_cmd + \
                 f' -s {start_pipe} ' + " -S check_star_data"
             logger.info('Running pipe command {}'.format(first_pipe))
-            tcsh_shell(first_pipe,
+            pipe_tcsh_shell(first_pipe,
                        env=ascds_env,
                        logfile=logger_fh,
-                       check=False)
+                       ok_codes=[80])
             star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
             if not len(star_files) == 1:
                 logger.info(
@@ -454,10 +472,10 @@ def run_ai(ais):
             if stop_pipe is not None:
                 second_pipe = second_pipe + f' -S {stop_pipe}'
             logger.info('Running pipe command {}'.format(second_pipe))
-            tcsh_shell(second_pipe,
+            pipe_tcsh_shell(second_pipe,
                        env=ascds_env,
                        logfile=logger_fh,
-                       check=stop_pipe is None)
+                       ok_codes=[80] if stop_pipe is not None else None)
 
 
 def mock_stars_file(opt, ai):
