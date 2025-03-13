@@ -9,8 +9,8 @@ import shutil
 from itertools import count
 import numpy as np
 
-import Ska.arc5gl
-from Ska.Shell import getenv, bash, tcsh_shell
+import ska_arc5gl
+from ska_shell import getenv, bash, tcsh_shell, NonZeroReturnCode
 import pyyaks.logger
 from astropy.io import fits
 from mica.starcheck import get_starcheck_catalog_at_date
@@ -53,7 +53,8 @@ PIPES = [
     'update_aqual_princkeys',
     'update_ds_ident',
     'add_revision',
-    'add_caldbver']
+    'add_caldbver'
+    'correct_bore']
 
 
 def get_options():
@@ -129,6 +130,24 @@ cai_override = {'obs_id': 'i',
                 'obi_num': 'i',
                 'ascdsver': 's',
                 'num_cai': 'i'}
+
+
+
+# Add a wrapper for tcsh_shell that continues on one allowed error code
+def pipe_tcsh_shell(cmd, env=None, logfile=None, ok_codes=None):
+    """
+    Run a tcsh command and return the output.
+
+    For aspect pipes, this allows the one error code (80) that is expected.
+    """
+    try:
+        output = tcsh_shell(cmd, env=env, logfile=logfile)
+    except NonZeroReturnCode as e:
+        if ok_codes is not None and e.return_code in ok_codes:
+            output = e.lines
+        else:
+            raise
+    return output
 
 
 def parse_obspar(file, override=None):
@@ -242,17 +261,17 @@ def link_files(dir, indir, outdir, istart, istop, obiroot, skip_slot=None):
                         logger.verbose(
                             "skipping file out of timerange {}".format(mfile))
                         continue
-                    aca0 = re.search('aca.*_(\d)_img0', mfile)
+                    aca0 = re.search(r'aca.*_(\d)_img0', mfile)
                     if skip_slot and aca0:
                         aca_file_slot = int(aca0.group(1))
                         if aca_file_slot in skip_slot:
                             logger.verbose(
                                 "skipping slot file on {}".format(mfile))
                             continue
-                obsparmatch = re.match('.*obs0a\.par(\.gz)?', mfile)
+                obsparmatch = re.match(r'.*obs0a\.par(\.gz)?', mfile)
                 if obsparmatch:
                     obimatch = re.match(
-                        '.*axaf%s_obs0a\.par(\.gz)?' % obiroot, mfile)
+                        r'.*axaf%s_obs0a\.par(\.gz)?' % obiroot, mfile)
                     if not obimatch:
                         logger.verbose("skipping obspar for different obi")
                         continue
@@ -312,22 +331,22 @@ def get_range_ai(ai_cmds, proc_range):
     if not proc_range:
         return ai_cmds
     # if a single integer, return on that aspect interval
-    intmatch = re.match('^(\d+)$', proc_range)
+    intmatch = re.match(r'^(\d+)$', proc_range)
     if intmatch:
         interv = int(intmatch.group(1))
         return [ai_cmds[int(intmatch.group(1))]]
     # if of the form 0:1, return that range of intervals
     # (python form, not inclusive)
-    imatch = re.match('^(\d+):(\d+)$', proc_range)
+    imatch = re.match(r'^(\d+):(\d+)$', proc_range)
     if imatch:
         return ai_cmds[int(imatch.group(1)):int(imatch.group(2))]
     # if of the form 1: , return range 1 -> end
-    omatch = re.match('^(\d+):$', proc_range)
+    omatch = re.match(r'^(\d+):$', proc_range)
     if omatch:
         return ai_cmds[int(omatch.group(1)):]
     # if of the form 0:+3000, find a tstop corresponding
     # to tstart of aspect interval 0 plus 3000 seconds
-    tmatch = re.match('^(\d+):\+(\d+)$', proc_range)
+    tmatch = re.match(r'^(\d+):\+(\d+)$', proc_range)
     if tmatch:
         # get n seconds of specified interval
         interv = int(tmatch.group(1))
@@ -348,7 +367,7 @@ def cut_stars(ai):
     starlines = open(starfiles[0]).read().split("\n")
     for slot in ai['skip_slot']:
         starlines = [i for i in starlines
-                     if not re.match("^\s+{}\s+1.*".format(slot), i)]
+                     if not re.match(r"^\s+{}\s+1.*".format(slot), i)]
     logger.info('Cutting stars by updating {}'.format(starfiles[0]))
     with open(starfiles[0], "w") as newlist:
         newlist.write("\n".join(starlines))
@@ -423,22 +442,24 @@ def run_ai(ais):
         # just do what is asked
         if (PIPES.index(start_pipe) > PIPES.index('check_star_data') or
                 ((stop_pipe is not None) and
-                 (PIPES.index(stop_pipe) < PIPES.index('check_star_data')))):
+                 (PIPES.index(stop_pipe) <= PIPES.index('check_star_data')))):
             pipe_cmd = pipe_cmd + f' -s {start_pipe} '
             if stop_pipe is not None:
                 pipe_cmd = pipe_cmd + f' -S {stop_pipe} '
             logger.info('Running pipe command {}'.format(
                 pipe_cmd))
-            tcsh_shell(pipe_cmd,
+            pipe_tcsh_shell(pipe_cmd,
                        env=ascds_env,
-                       logfile=logger_fh)
+                       logfile=logger_fh,
+                       ok_codes=[80] if stop_pipe is not None else None)
         else:
             first_pipe = pipe_cmd + \
                 f' -s {start_pipe} ' + " -S check_star_data"
             logger.info('Running pipe command {}'.format(first_pipe))
-            tcsh_shell(first_pipe,
+            pipe_tcsh_shell(first_pipe,
                        env=ascds_env,
-                       logfile=logger_fh)
+                       logfile=logger_fh,
+                       ok_codes=[80])
             star_files = glob(os.path.join(ai['outdir'], "*stars.txt"))
             if not len(star_files) == 1:
                 logger.info(
@@ -451,9 +472,10 @@ def run_ai(ais):
             if stop_pipe is not None:
                 second_pipe = second_pipe + f' -S {stop_pipe}'
             logger.info('Running pipe command {}'.format(second_pipe))
-            tcsh_shell(second_pipe,
+            pipe_tcsh_shell(second_pipe,
                        env=ascds_env,
-                       logfile=logger_fh)
+                       logfile=logger_fh,
+                       ok_codes=[80] if stop_pipe is not None else None)
 
 
 def mock_stars_file(opt, ai):
@@ -549,7 +571,7 @@ def main(opt):
     # get files
     if opt.obsid:
         logger.info('Opening connection to archive server')
-        arc5 = Ska.arc5gl.Arc5gl()
+        arc5 = ska_arc5gl.Arc5gl()
         for (prod, query) in pipe_config['archfiles']:
             proddir = os.path.join(opt.dir, prod)
             if not os.path.exists(proddir):
@@ -590,7 +612,7 @@ def main(opt):
                 raise ValueError("No files found for glob %s"
                                  % fileglob)
             for mfile in match:
-                if re.match(".*\.gz", mfile):
+                if re.match(r".*\.gz", mfile):
                     logger.verbose('Unzipping {}'.format(mfile))
                     bash("gunzip -f %s" % os.path.abspath(mfile))
 
@@ -620,7 +642,7 @@ def main(opt):
         for ofile in obspar_files:
             obspar = get_obspar(ofile)
             if obspar['obi_num'] == obi_num:
-                obsmatch = re.search('axaf(.+)_obs0a\.par', ofile)
+                obsmatch = re.search(r'axaf(.+)_obs0a\.par', ofile)
                 obiroot = obsmatch.group(1)
         if not obiroot:
             raise ValueError("no obspar for obi %d" % obi_num)
