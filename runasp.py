@@ -100,6 +100,9 @@ def get_options():
                       help='Log file (default=pipe.log)')
     parser.add_option('--fdc-file',
                       help="fdc file")
+    parser.add_option("--param",
+                      action='append',
+                      help="additional params to be pset before the run")
     opt, args = parser.parse_args()
     return opt, args
 
@@ -236,7 +239,7 @@ def dir_setup(dir, istart, label=None, inplace=False, rev=1):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
         logger.info('Making output directory {}'.format(outdir))
-    return workdir, indir, outdir
+    return os.path.abspath(workdir), os.path.abspath(indir), os.path.abspath(outdir)
 
 
 def link_files(dir, indir, outdir, istart, istop, obiroot, skip_slot=None):
@@ -403,21 +406,31 @@ def run_ai(ais):
     Run aspect pipeline 'flt_run_pipe' over the aspect intervals described
     in the list of dictionaries passed as an argument
     """
+    logger.info('About to get ASCDS environment')
     ascds_env = getenv('source /home/ascds/.ascrc -r release', shell='tcsh')
     ocat_env = getenv(
         'source /proj/sot/ska/data/aspect_authorization/set_ascds_ocat_vars.csh',
         shell='tcsh')
     for var in ['ASCDS_OCAT_UNAME', 'ASCDS_OCAT_SERVER', 'ASCDS_OCAT_PWORD']:
         ascds_env[var] = ocat_env[var]
+    for var in ['SYBASE_OCS', 'SYBASE']:
+        ascds_env[var] = os.environ[var]
 
     logger_fh = FilelikeLogger(logger)
 
+    logger.info('About to run')
     loglines = tcsh_shell("punlearn asp_l1_std",
                           env=ascds_env, logfile=logger_fh)
 
     if opt.fdc_file is not None:
+        logger.info('pset asp_l1_std fdc')
         tcsh_shell("pset asp_l1_std fdc='{}'".format(opt.fdc_file),
                    env=ascds_env, logfile=logger_fh)
+    if opt.param is not None and len(opt.param):
+        for param in opt.param:
+            cmd = f'pset asp_l1_std {param}'
+            logger.info(cmd)
+            tcsh_shell(cmd, env=ascds_env)
 
     for ai in ais:
         pipe_cmd = 'flt_run_pipe -r {root} -i {indir} -o {outdir} \
