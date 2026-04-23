@@ -406,6 +406,7 @@ def run_ai(ais):
     Run aspect pipeline 'flt_run_pipe' over the aspect intervals described
     in the list of dictionaries passed as an argument
     """
+    logger.info('About to get ASCDS environment')
     ascds_env = getenv('source /home/ascds/.ascrc -r release', shell='tcsh')
     ocat_env = getenv(
         'source /proj/sot/ska/data/aspect_authorization/set_ascds_ocat_vars.csh',
@@ -417,17 +418,19 @@ def run_ai(ais):
 
     logger_fh = FilelikeLogger(logger)
 
+    logger.info('About to run')
     loglines = tcsh_shell("punlearn asp_l1_std",
                           env=ascds_env, logfile=logger_fh)
 
     if opt.fdc_file is not None:
+        logger.info('pset asp_l1_std fdc')
         tcsh_shell("pset asp_l1_std fdc='{}'".format(opt.fdc_file),
                    env=ascds_env, logfile=logger_fh)
     if opt.param is not None and len(opt.param):
         for param in opt.param:
-            cmd = 'pset asp_l1_std {}'.format(param)
-            tcsh_shell(cmd,
-                       env=ascds_env)
+            cmd = f'pset asp_l1_std {param}'
+            logger.info(cmd)
+            tcsh_shell(cmd, env=ascds_env)
 
     for ai in ais:
         pipe_cmd = 'flt_run_pipe -r {root} -i {indir} -o {outdir} \
