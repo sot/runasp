@@ -102,7 +102,7 @@ def get_options():
                       help="fdc file")
     parser.add_option("--param",
                       action='append',
-                      help="additional params to be pset before the run")
+                      help="additional params to be pset before the run (see `plist asp_l1_std`)")
     opt, args = parser.parse_args()
     return opt, args
 
