@@ -1,0 +1,59 @@
+Faithful technical flowchart panel that reproduces an entire scientific data-pipeline diagram. Portrait 3:4 vertical aspect ratio. Clean modern flat-vector style on a slightly off-white background.
+
+CRITICAL TEXT-RENDERING RULES (apply to every label, node, edge label, and subgraph title):
+- Use a clean MONOSPACE font (e.g. JetBrains Mono, Fira Code, or generic monospace) for ALL text. No serif, no decorative sans-serif.
+- Render every text label PRECISELY as written, character for character, no spelling errors, no creative substitutions, no fake characters, no extra punctuation.
+- Render the UNDERSCORE character "_" as a LITERAL underscore between letters. Do NOT interpret underscores as subscript markers. Identifiers like d_aca_meas, ang_y_sm, p_lsi, theta_X must show the underscore as a visible horizontal stroke; do NOT render the part after the underscore as a smaller subscript.
+- Use UNIFORM text weight throughout the figure. No bold, no italics, no weight variation. Subgraph titles and node text should all be the same weight.
+- The ONLY allowed math typography is the Greek χ in "χ²", the Greek Σ in "Σ_fid" (with "fid" as a small subscript directly to the lower-right of Σ — this is the only intentional subscript in the figure), and the multiplication dot · in cross-product expressions.
+
+The figure has THREE labeled subgraph regions, each enclosed in its own light-gray rounded rectangular boundary. The ONLY text that appears at the top of each subgraph is its bold title (the exact title is given below for each region). Do NOT render any other heading or caption above a subgraph title.
+
+First subgraph, in the upper-left region of the figure. Its only title is exactly: Measured Centroids (ACACENT). It contains a vertical chain of 5 nodes connected by thin downward arrows, with edge labels in small text alongside each arrow. ALL FIVE NODES — including the long-text 5th node — MUST BE DRAWN INSIDE the gray subgraph boundary. The gray rounded rectangle that defines the subgraph must be made wide enough (and tall enough) to accommodate the widest node (the 5th one) on a single line. DO NOT push the 5th node outside the subgraph rectangle. DO NOT split the subgraph into a top portion containing nodes 1-4 and a stranded box containing node 5. All five nodes share the same gray subgraph background.
+- node 1: PARALLELOGRAM, light pink fill, dark pink border, two-line text: ACADATA images / cent_i, cent_j (pixels)
+- arrow with label: aca_corr_centr (Model_Distortion_P)
+- node 2: rounded rectangle, light green fill, green border, text: ang_y, ang_z (deg, ACA frame)
+- arrow with label: aca_filter_centr (Savitzky-Golay, 40 s)
+- node 3: rounded rectangle, light green: ang_y_sm, ang_z_sm
+- arrow with label: aca_corr_fid (thermal + periscope)
+- node 4: rounded rectangle, light green, two-line: ang_y_sm, ang_z_sm / (final, in ACACENT)
+- plain arrow
+- node 5 (this one MUST be drawn inside the same gray subgraph rectangle as nodes 1-4): rounded rectangle, light green: d_aca_meas = (1, tan ang_y_sm, tan ang_z_sm)
+
+Second subgraph, in the upper-right region of the figure. Its only title is exactly: Nominal Fid Positions. It contains a vertical chain of 3 nodes:
+- node 1: PARALLELOGRAM, cream fill, DASHED orange border, two-line: CALALIGN.fid_pos_lsi / (mm, LSI)
+- arrow labeled: − polynomial(simz_offset) / aca_id_image
+- node 2: PARALLELOGRAM, light pink, dark pink border, two-line: FIDPROPS.p_lsi / (corrected, mm, LSI)
+- arrow labeled: + lsi0_stt + stt0_stf / calcNomFidPos()
+- node 3: rounded rectangle, light green: p_stf (mm, STF)
+
+Third subgraph, below the second one in the right column of the figure. Its only title is exactly: Estimated Fid Positions. Outlined with a thin dashed BLUE border to indicate iteration. The subgraph contains, from top to bottom:
+- A SHORT arrow entering the subgraph from above (from p_stf in the second subgraph). The arrow itself crosses into the third subgraph; its label is positioned INSIDE the dashed-bordered region, just below the title and above the first node, reading: Rot_X(theta_X) · p_stf + (0, dy, dz)
+- node 1: rounded rectangle, light green: p_fc (mm, FC)
+- arrow labeled: − rrc0_fc_x along X, negate, unitize
+- node 2: rounded rectangle, light green: d_fc (unit vector, FC)
+- arrow labeled: × M = acaN2aca · fc2acaN · fts_misalign
+- node 3: rounded rectangle, light green: d_aca_est (unit vector, ACA)
+
+The Rot_X label being INSIDE the dashed-bordered third subgraph is important: the rotation is recomputed every LM iteration, so it conceptually belongs inside the loop.
+
+Below all three subgraphs sits the central junction: a single rectangular node, light blue fill, blue border, containing EXACTLY THREE separate lines of text with explicit line breaks between them. The three lines must be (and ONLY these three lines, no merging, no compression onto fewer lines):
+
+  Line 1: asp_solve χ² fit
+  Line 2: min Σ_fid (d_aca_meas − d_aca_est)²
+  Line 3: free parameters: (theta_X, dy, dz)
+
+The node must be tall enough to show all three lines distinctly. Do NOT collapse line 1 and line 2 onto a single line.
+
+Arrow from d_aca_meas (bottom of first subgraph) into this junction.
+Arrow from d_aca_est (bottom of third subgraph) into this junction.
+
+A single curved DASHED ORANGE arrow exits the right side of the junction and arcs gracefully UP the right side of the figure, re-entering the third subgraph at its top-right corner. The arc has a small label next to it that reads: update (theta_X, dy, dz), iterate until convergence
+
+The label MUST be rendered HORIZONTALLY in normal upright reading orientation, NOT rotated, NOT vertical, NOT running along the arc.
+
+From the junction, one solid downward arrow descends to the final output node at the very bottom, labeled on the arrow: after convergence
+Final node: PARALLELOGRAM, light pink fill, dark pink border, three-line text:
+ASPSOL / dy, dz, dtheta (+ _err) / per KALMAN time
+
+All arrows in the main flow point strictly DOWNWARD; the only upward element is the single dashed orange iteration arc on the right. Crisp clean vector linework, no shadows, no gradients. Plenty of negative space.
