@@ -93,7 +93,7 @@ flowchart LR
         direction TB
         POLINT["polint to KALMAN time<br/>(default order 2)"]
         DACAM(["d_aca_meas =<br/>(1, tan(ang_y_sm), tan(ang_z_sm))"])
-        CHI2["chi-square fit over fids<br/>LM mrqmin (default)<br/>or analytic 3x3 solve"]
+        CHI2["chi-square fit over fids<br/>analytic 3x3 solve (flight)<br/>LM mrqmin if max_iterations &gt; 0"]
         FILL["interpolate fitted (dy, dz, dtheta)<br/>to non-fit KALMAN rows"]
         KALMAN[/"KALMAN<br/>ra, dec, roll, q_att, time"/]
         ASPSOL[/"ASPSOL<br/>dy, dz, dtheta (+errors)<br/>ra, dec, roll, q_att (from KALMAN)"/]
